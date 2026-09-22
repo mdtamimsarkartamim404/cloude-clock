@@ -1,166 +1,120 @@
-# CYD Smart Sky Clock 🌤️⏰
+# 🌟 CYD HUB Professional Control v2
 
-A feature-packed, interactive desk clock and weather station built for the **ESP32-2432S028R** (Cheap Yellow Display / CYD 2.8" ST7789 TFT display). It features real-time time synchronization over NTP, dynamic weather updates via OpenWeatherMap, automatic day/night theme transitions, and built-in touch mini-games.
+CYD HUB is a feature-rich, all-in-one smart dashboard and retro gaming hub designed specifically for the **ESP32-2432S028R (Cheap Yellow Display - 2.8" ST7789 version)**. 
+
+It features a completely standalone UI combined with a **Professional Web Control Center**, allowing you to set up Wi-Fi, change themes, track weather, and control the device remotely from your smartphone without ever needing to hardcode network credentials into the sketch.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-* **Real-Time Clock (NTP Synchronized):**
-* Automatic time sync via NTP servers (`pool.ntp.org`).
-* 12-hour time display with AM/PM indicator, blinking colon, date, and day.
-* WiFi signal strength indicator (RSSI).
+### 📱 Professional Phone Control (Web UI)
+*   **Zero Hardcoding:** Scan the on-screen QR codes to connect to the CYD's access point and open the control center.
+*   **Wi-Fi Scanner:** Scan and connect to your home network directly from your phone browser.
+*   **Remote Navigation:** Switch between screens (Clock, Games, Weather, Settings) remotely.
+*   **Device Management:** Adjust brightness, change themes, toggle 12/24h time, and sync NTP manually.
+*   **Location Config:** Enter your City, Latitude, Longitude, and Timezone directly from the phone for accurate weather data.
+*   **Custom Palette Editor:** Build and apply your own custom color themes using the web-based color picker.
 
+### 🕰️ Smart Clocks (10 Styles)
+Features a highly optimized rendering engine with smooth, flicker-free analog hand movements using off-screen sprites.
+1. Digital
+2. Analog (Smooth movement)
+3. Big Digital
+4. Minimal
+5. Ring
+6. Neon
+7. Dashboard
+8. Split
+9. Clean
+10. Seconds
 
-* **Live Weather Display:**
-* Fetches temperature, "feels like", humidity, wind speed, and atmospheric pressure.
-* OpenWeatherMap API integration.
-* Custom dynamic weather icons (Sun, Moon, Clouds, Rain, Thunderstorm, Snow, Mist).
+### 🌦️ Live Weather Station
+*   Powered by the **Open-Meteo API** (No API key required).
+*   Displays current temperature, condition (with custom icons), "feels like" temp, humidity, and wind speed.
+*   Includes a 4-day future forecast (Highs/Lows and conditions).
 
+### ⏱️ Productivity Tools
+*   **Timer:** Visual progress bar, precise adjustment buttons, and loud alarm.
+*   **Stopwatch:** Millisecond accuracy with split/lap tracking.
 
-* **Dynamic Day/Night Theme:**
-* Automatically switches UI themes (Background, Cards, Accents) based on the current time.
-* Night mode features background starry skies; Day mode features subtle cloud animations.
-
-
-* **Built-in Touch Games:**
-* **Catch Game:** Interactive touch arcade game where you catch falling weather items. Saves high scores using ESP32 Non-Volatile Storage (`Preferences`).
-* **Tic-Tac-Toe (X-O):** Play against an intelligent onboard AI algorithm with score history tracking (Wins, Losses, Draws).
-
-
-* **On-Screen Touch Navigation:** Smooth bottom navigation bar to switch between Clock, Weather, Catch Game, and Tic-Tac-Toe.
+### 🎮 Retro Gaming Console (8 Games)
+Includes local high-score tracking saved directly to the ESP32's non-volatile memory (NVS).
+*   **X & O (Tic-Tac-Toe):** Play against an AI opponent.
+*   **Snake:** Swipe-to-steer classic snake game.
+*   **Memory:** Match-2 card game with 16 tiles.
+*   **Whack-a-Mole:** Fast-paced tapping challenge (30-second rush).
+*   **Reflex:** Millisecond reaction time tester.
+*   **2048:** Full swipe-based 2048 puzzle game.
+*   **Bricks (Breakout):** Paddle and ball block-breaking game with increasing levels.
+*   **Simon:** Memory sequence game with audio-visual feedback.
 
 ---
 
 ## 🛠️ Hardware Requirements
 
-* **Board:** ESP32-2432S028R (CYD / Cheap Yellow Display - 2.8" ST7789 TFT with XPT2046 Touch Screen)
-* **Connectivity:** Micro-USB or USB-C cable for programming and power supply.
+*   **Board:** ESP32-2432S028R (Cheap Yellow Display)
+*   **Screen:** 2.8" TFT Touch Screen (ST7789 controller)
+*   **Features used:** Touchscreen (XPT2046), Backlight control, Built-in Speaker/Buzzer.
 
 ---
 
-## 📚 Required Libraries
+## 💻 Software & Library Dependencies
 
-Install the following libraries using the **Arduino Library Manager** (`Ctrl + Shift + I` in Arduino IDE):
+Install the following libraries via the Arduino IDE Library Manager:
 
-1. **TFT_eSPI** (by Bodmer)
-2. **XPT2046_Touchscreen** (by Paul Stoffregen)
-3. **ArduinoJson** (Version `7.x` by Benoit Blanchon)
+1.  **`TFT_eSPI`** by Bodmer
+2.  **`XPT2046_Touchscreen`** by Paul Stoffregen
+3.  **`ArduinoJson`** by Benoit Blanchon (Must be v7.x)
 
----
+*Note: `WiFi`, `WebServer`, `HTTPClient`, `Preferences`, and `time` are built into the ESP32 Arduino Core.*
 
-## ⚙️ Setup & Configuration
-
-### 1. Configure `TFT_eSPI` Library
-
-Before uploading the main code, you **must** replace or update the `User_Setup.h` file located inside your local Arduino library directory:
-`.../Arduino/libraries/TFT_eSPI/User_Setup.h`
-
-Paste the following setup configuration:
-
-```cpp
-#define USER_SETUP_ID 202
-#define ST7789_DRIVER
-
-#define TFT_WIDTH  240
-#define TFT_HEIGHT 320
-
-#define TFT_INVERSION_ON
-#define TFT_RGB_ORDER TFT_BGR
-
-#define USE_HSPI_PORT
-
-#define TFT_MISO 12
-#define TFT_MOSI 13
-#define TFT_SCLK 14
-#define TFT_CS   15
-#define TFT_DC    2
-#define TFT_RST  -1
-#define TFT_BL   21
-#define TFT_BACKLIGHT_ON HIGH
-
-#define LOAD_GLCD
-#define LOAD_FONT2
-#define LOAD_FONT4
-#define LOAD_FONT6
-#define LOAD_FONT7
-#define LOAD_FONT8
-#define SMOOTH_FONT
-
-#define SPI_FREQUENCY       40000000
-#define SPI_READ_FREQUENCY  20000000
-
-```
+### TFT_eSPI Configuration (`User_Setup.h`)
+You must configure the `TFT_eSPI` library to work with the CYD. Replace the contents of your `User_Setup.h` (found in the `TFT_eSPI` library folder) with the correct pins for the ESP32-2432S028R. 
+*(Usually: Driver = ST7789, TFT_WIDTH = 240, TFT_HEIGHT = 320, MOSI = 23, SCLK = 18, CS = 15, DC = 2, RST = 4, BL = 21).*
 
 ---
 
-### 2. Configure Credentials in `CYD_Smart_Sky_Clock.ino`
+## 🚀 Installation & Setup
 
-Open the sketch file and update the WiFi credentials, OpenWeatherMap API key, and location settings:
-
-```cpp
-// ================== User Configuration ==================
-const char* WIFI_SSID  = "YOUR_WIFI_NAME";
-const char* WIFI_PASS  = "YOUR_WIFI_PASSWORD";
-const char* OWM_KEY    = "YOUR_OPENWEATHERMAP_API_KEY"; // Free key from openweathermap.org
-const char* OWM_CITY   = "Rajshahi,BD";                // City, Country Code
-const char* CITY_LABEL = "RAJSHAHI";                    // Display label on UI
-const long  GMT_OFFSET = 6 * 3600;                     // UTC Offset in seconds (e.g., UTC+6 = 6 * 3600)
-// ========================================================
-
-```
+1.  **Clone or Download** this repository.
+2.  Open the `.ino` file in the Arduino IDE.
+3.  Select Board: **ESP32 Dev Module**.
+4.  Set Partition Scheme: **Huge APP (3MB No OTA/1MB SPIFFS)** or **Default 4MB with spiffs**.
+5.  Compile and Upload the code to your CYD.
 
 ---
 
-### 3. Board Settings in Arduino IDE
+## 📱 How to Connect and Use
 
-* **Board:** `ESP32 Dev Module`
-* **CPU Frequency:** `240MHz (WiFi / BT)`
-* **Flash Frequency:** `80MHz`
-* **Flash Mode:** `QIO`
-* **Partition Scheme:** `Default 4MB with spiffs` or `Huge APP (3MB No OTA/1MB SPIFFS)`
-* **Upload Speed:** `921600` or `115200`
+### Step 1: Initial Wi-Fi Setup (On Boot)
+1. When you power on the CYD for the first time, it will open the **Phone Wi-Fi Setup** screen.
+2. Scan the **first QR code** with your smartphone to connect to the CYD's local Access Point:
+    *   **SSID:** `CYD-HUB-CONTROL`
+    *   **Password:** `CYDControl24`
+3. Tap "NEXT" on the CYD screen.
+4. Scan the **second QR code** to open the Control Center in your phone's browser (or navigate manually to `http://192.168.4.1/`).
 
----
+### Step 2: Connect to Home Network
+1. In the Web Control Center on your phone, click **"Scan Nearby Networks"**.
+2. Select your home Wi-Fi from the list and enter the password.
+3. The CYD will connect to your router, sync the time via NTP, and download the latest weather data.
 
-## 📌 Pinout Reference (ESP32-2432S028R)
-
-| Function | ESP32 Pin | SPI Bus |
-| --- | --- | --- |
-| **TFT Display (ST7789)** |  | **HSPI** |
-| TFT MOSI | GPIO 13 | HSPI |
-| TFT MISO | GPIO 12 | HSPI |
-| TFT SCLK | GPIO 14 | HSPI |
-| TFT CS | GPIO 15 | HSPI |
-| TFT DC | GPIO 2 | — |
-| TFT Backlight | GPIO 21 | — |
-| **Touch Screen (XPT2046)** |  | **VSPI** |
-| Touch MOSI | GPIO 32 | VSPI |
-| Touch MISO | GPIO 39 | VSPI |
-| Touch CLK | GPIO 25 | VSPI |
-| Touch CS | GPIO 33 | VSPI |
-| Touch IRQ | GPIO 36 | — |
+### Step 3: Customization
+From the Web Control Center, you can:
+*   Set your exact City, Latitude, and Longitude for weather.
+*   Change the UTC offset (default is `+6` for Bangladesh).
+*   Apply custom HEX colors to the UI.
+*   Force screen changes on the device remotely.
 
 ---
 
-## 🎮 How to Play
+## ⚙️ Settings Overview (On-Device)
 
-### 1. Catch Game
-
-* Tap items as they fall from the top before they reach the bottom navigation bar.
-* **Sun / Raindrop:** +1 Point
-* **Star:** +5 Points
-* **Dark Cloud:** -3 Points
-* High scores are saved automatically to board memory.
-
-### 2. Tic-Tac-Toe
-
-* Play as **X** against the CYD AI (**O**).
-* Tap any empty space on the grid to place your mark.
-* Track your total Wins, Losses, and Draws on the right panel.
-
----
-
-## 📄 License
-
-This project is open-source under the MIT License. Feel free to modify and adapt it for personal projects!
+If you don't want to use the web app, you can change core settings directly on the device:
+*   **Theme:** Cycle through Midnight, Sunset, Forest, Light, and Amoled.
+*   **Brightness:** Drag the slider to adjust screen backlight intensity.
+*   **24-hour clock:** Toggle AM/PM vs 24h format.
+*   **Sound:** Enable/disable UI beeps and game sounds.
+*   **Temperature:** Switch between Celsius and Fahrenheit.
+*   **Wi-Fi Setup / Scanner:** Opens the AP mode for phone reconfiguration.
