@@ -64,6 +64,7 @@ const float LONGITUDE = 88.6042f;
 #define SCR_SETUP    7
 #define SCR_ISLAMIC  8
 #define SCR_ALARM    9
+#define SCR_KNOWLEDGE 10
 
 #define C565(r,g,b) ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3)))
 
@@ -102,6 +103,8 @@ void alarmTick();
 void alarmDrawRow(int i);
 void saveAlarms();
 void loadAlarms();
+void knowledgeInit();
+void knowledgeLoop();
 
 // ============================ AP QR CODES ==================================
 const uint8_t CYD_AP_QR[33][33] PROGMEM = {
@@ -196,6 +199,13 @@ const Theme themes[] = {
   {"Ocean",    C565(6,18,36),   C565(14,38,66),  C565(224,242,255), C565(110,150,190), C565(0,180,220),  C565(80,220,200), C565(80,230,150),  C565(255,110,110), C565(6,18,36)},
   {"Royal",    C565(20,10,40),  C565(40,22,72),  C565(245,235,255), C565(150,130,190), C565(180,120,255), C565(255,180,80), C565(100,230,150), C565(255,100,100), C565(20,10,40)},
   {"Cyber",    C565(8,6,20),    C565(20,14,42),  C565(230,255,250), C565(110,130,160), C565(0,255,200),  C565(255,60,180), C565(80,255,160),  C565(255,80,80),  C565(8,6,20)},
+  {"Neon City",   C565(6,4,16),   C565(18,10,34),  C565(235,250,255), C565(120,110,150), C565(255,0,140),  C565(0,240,255), C565(100,255,80),  C565(255,45,85),  C565(6,4,16)},
+  {"Synthwave",   C565(20,4,40),  C565(45,10,70),  C565(255,225,255), C565(150,110,180), C565(255,40,180), C565(255,140,40), C565(60,230,200),  C565(255,60,90),  C565(20,4,40)},
+  {"Neo Tokyo",   C565(5,8,14),   C565(18,24,34),  C565(220,240,255), C565(100,120,140), C565(255,20,60),  C565(0,230,255), C565(80,255,140),  C565(255,40,60),  C565(5,8,14)},
+  {"Glitch",      C565(4,10,6),   C565(14,26,18),  C565(180,255,190), C565(90,140,100),  C565(255,0,255),  C565(150,255,0), C565(80,255,120),  C565(255,60,60),  C565(4,10,6)},
+  {"Chrome Noir", C565(6,6,10),   C565(18,18,26),  C565(220,225,235), C565(110,115,130), C565(90,190,255), C565(190,110,255), C565(90,230,160), C565(255,90,110), C565(6,6,10)},
+  {"Acid Rain",   C565(4,12,10),  C565(12,30,26),  C565(200,255,150), C565(90,140,110),  C565(200,255,40), C565(0,220,180), C565(120,255,90),  C565(255,70,70),  C565(4,12,10)},
+  {"Holo",        C565(6,10,18),  C565(16,22,38),  C565(225,245,255), C565(110,130,160), C565(80,200,255), C565(255,120,220), C565(120,255,190), C565(255,90,110), C565(6,10,18)},
   {"Nord",     C565(46,52,64),  C565(59,66,82),  C565(236,239,244), C565(143,153,170), C565(136,192,208), C565(180,142,173), C565(163,190,140), C565(191,97,106), C565(46,52,64)},
   {"Dracula",  C565(40,42,54),  C565(68,71,90),  C565(248,248,242), C565(98,114,164), C565(189,147,249), C565(255,121,198), C565(80,250,123),  C565(255,85,85),  C565(40,42,54)},
   {"Solarized",C565(0,43,54),   C565(7,54,66),   C565(253,246,227), C565(147,161,161), C565(38,139,210), C565(211,54,130), C565(133,153,0),  C565(220,50,47),  C565(0,43,54)},
@@ -211,46 +221,21 @@ struct Cfg {
   bool h24;
   bool sound;
   bool fahr;
-  bool custom;
-  uint16_t customBg, customPanel, customText, customDim, customAccent, customAccent2;
   uint8_t clockStyle;
 };
-Cfg cfg = {0, 200, false, true, false, false,
-           C565(10,12,26), C565(26,30,56), C565(236,241,255),
-           C565(124,134,166), C565(0,200,255), C565(255,90,200), 0};
-Theme customTheme = {"Custom", C565(10,12,26), C565(26,30,56), C565(236,241,255),
-                     C565(124,134,166), C565(0,200,255), C565(255,90,200),
-                     C565(70,225,140), C565(255,90,90), C565(10,12,26)};
-#define TH (cfg.custom ? customTheme : themes[cfg.theme])
+Cfg cfg = {0, 200, false, true, false, 0};
+#define TH (themes[cfg.theme])
 
 uint32_t hi[10];
 bool hiDirty = false;
 
 // ============================ STORAGE =======================================
-void syncCustomTheme() {
-  customTheme.bg = cfg.customBg;
-  customTheme.panel = cfg.customPanel;
-  customTheme.text = cfg.customText;
-  customTheme.dim = cfg.customDim;
-  customTheme.accent = cfg.customAccent;
-  customTheme.accent2 = cfg.customAccent2;
-  customTheme.good = C565(70,225,140);
-  customTheme.bad = C565(255,90,90);
-  customTheme.onacc = cfg.customBg;
-}
 void saveCfg() {
   prefs.putUChar("theme", cfg.theme);
   prefs.putUChar("bright", cfg.bright);
   prefs.putBool("h24", cfg.h24);
   prefs.putBool("snd", cfg.sound);
   prefs.putBool("fahr", cfg.fahr);
-  prefs.putBool("custom", cfg.custom);
-  prefs.putUShort("cbg", cfg.customBg);
-  prefs.putUShort("cpanel", cfg.customPanel);
-  prefs.putUShort("ctext", cfg.customText);
-  prefs.putUShort("cdim", cfg.customDim);
-  prefs.putUShort("cacc", cfg.customAccent);
-  prefs.putUShort("cacc2", cfg.customAccent2);
   prefs.putUChar("clock", cfg.clockStyle);
 }
 void loadCfg() {
@@ -262,17 +247,9 @@ void loadCfg() {
   cfg.h24    = prefs.getBool("h24", false);
   cfg.sound  = prefs.getBool("snd", true);
   cfg.fahr   = prefs.getBool("fahr", false);
-  cfg.custom = prefs.getBool("custom", false);
-  cfg.customBg = prefs.getUShort("cbg", C565(10,12,26));
-  cfg.customPanel = prefs.getUShort("cpanel", C565(26,30,56));
-  cfg.customText = prefs.getUShort("ctext", C565(236,241,255));
-  cfg.customDim = prefs.getUShort("cdim", C565(124,134,166));
-  cfg.customAccent = prefs.getUShort("cacc", C565(0,200,255));
-  cfg.customAccent2 = prefs.getUShort("cacc2", C565(255,90,200));
   if (prefs.isKey("clock")) cfg.clockStyle = prefs.getUChar("clock", 0);
   else cfg.clockStyle = prefs.getBool("ana", false) ? 1 : 0;
-  if (cfg.clockStyle > 9) cfg.clockStyle = 0;
-  syncCustomTheme();
+  if (cfg.clockStyle > 19) cfg.clockStyle = 0;
   for (int i = 0; i < 10; i++) {
     char k[4]; snprintf(k, sizeof(k), "h%d", i);
     hi[i] = prefs.getUInt(k, 0);
@@ -480,7 +457,7 @@ void wifiTick() {
   if (WiFi.status() == WL_CONNECTED) {
     wifiConnectingFromWeb = false;
     if (!ntpStarted) {
-      configTime(savedTzOffset(), DST_OFFSET_SEC, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+      configTime(savedTzOffset(), savedDstOffset(), "pool.ntp.org", "time.google.com", "time.cloudflare.com");
       ntpStarted = true;
     }
   } else if (millis() - lastWifiTry > 20000) {
@@ -643,7 +620,14 @@ bool fetchWeather() {
 }
 void weatherTick() {
   if (screen == SCR_GAME) return;
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED) {
+    if (wx.ok) {
+      wx.ok = false;
+      if (screen == SCR_WEATHER) wxDraw();
+      else if (screen == SCR_HOME) homeHeader(true);
+    }
+    return;
+  }
   uint32_t now = millis();
   if (wxTried && (now - wxLastTry) < (wx.ok ? 1200000UL : 30000UL)) return;
   wxTried = true;
@@ -897,7 +881,7 @@ const Rect TILES[8] = {
   {  4, 54, 75, 88}, { 83, 54, 75, 88}, {162, 54, 75, 88}, {241, 54, 75, 88},
   {  4,146, 75, 88}, { 83,146, 75, 88}, {162,146, 75, 88}, {241,146, 75, 88}
 };
-const char* TILE_NAME[8] = {"Clock","Timer","Alarm","Weather","Games","Islamic","Stopwatch","Settings"};
+const char* TILE_NAME[8] = {"Clock","Timer","Alarm","Weather","Games","Islamic","Settings","Knowledge"};
 
 void drawTile(int i) {
   int x = TILES[i].x, y = TILES[i].y, w = TILES[i].w, h = TILES[i].h;
@@ -910,8 +894,12 @@ void drawTile(int i) {
     case 3: drawWxIcon(cx, cy, 4, 1); break;
     case 4: iconPad(cx, cy, TH.good, TH.panel); break;
     case 5: iconIslamic(cx, cy, TH.accent2, TH.panel); break;
-    case 6: iconTimer(cx, cy, TH.good); break;
-    default: iconGear(cx, cy, TH.text, TH.panel); break;
+    case 6: iconGear(cx, cy, TH.good, TH.panel); break;
+    case 7:
+      tft.drawCircle(cx, cy, 18, TH.accent);
+      txt("?", cx, cy + 1, 4, TH.accent, TH.panel, MC_DATUM);
+      break;
+    default: break;
   }
   txt(TILE_NAME[i], cx, y + h - 14, 1, TH.text, TH.panel, MC_DATUM);
 }
@@ -921,7 +909,7 @@ void homeInit() {
   homeHeader(true);
 }
 void homeHeader(bool force) {
-  String t = "--:--", d = "Connecting WiFi...";
+  String t = "--:--", d = "Set time from Control";
   if (timeValid()) {
     char b[24];
     if (cfg.h24) snprintf(b, sizeof(b), "%02d:%02d", nowTm.tm_hour, nowTm.tm_min);
@@ -944,10 +932,10 @@ void homeHeader(bool force) {
     drawWifi(SW - 22, 8);
   }
 
-  int wt = wx.ok ? tempNum(wx.t) : -9999;
+  int wt = (WiFi.status() == WL_CONNECTED && wx.ok) ? tempNum(wx.t) : -9999;
   if (force || wt != lastWx) {
     lastWx = wt;
-    if (wx.ok) {
+    if (WiFi.status() == WL_CONNECTED && wx.ok) {
       tft.fillRect(SW - 110, 22, 106, 30, TH.bg);
       drawWxIcon(SW - 92, 30, 2, wmoIcon(wx.code));
       drawTemp(SW - 62, 26, wx.t, 2, 1, TH.text, TH.bg);
@@ -968,8 +956,9 @@ void homeLoop() {
         case 3: goScreen(SCR_WEATHER);break;
         case 4: goScreen(SCR_GAMES);  break;
         case 5: goScreen(SCR_ISLAMIC);break;
-        case 6: goScreen(SCR_TIMER);  break;
-        default:goScreen(SCR_SETTINGS);break;
+        case 6: goScreen(SCR_SETTINGS);break;
+        case 7: goScreen(SCR_KNOWLEDGE);break;
+        default: break;
       }
       return;
     }
@@ -983,9 +972,11 @@ uint32_t clkLastFrame = 0;
 int clkLastTemp = -9999;
 const int CLOCK_CX = 160;
 
-const char* CLOCK_STYLE_NAMES[10] = {
+const char* CLOCK_STYLE_NAMES[20] = {
   "Digital", "Analog", "Big Digital", "Minimal", "Ring",
-  "Neon", "Dashboard", "Split", "Clean", "Seconds"
+  "Neon", "Dashboard", "Split", "Clean", "Seconds",
+  "Gear Train", "Pendulum", "Roman", "Moon Phase", "Compass",
+  "Industrial", "Concentric", "Binary LED", "Sun Dial", "Balance"
 };
 
 String clockTimeString() {
@@ -1229,11 +1220,237 @@ void clockDrawDynamic() {
   }
 }
 
+void drawAnimatedClockNew(int style) {
+  // All new animated clocks use the same 176x176 double-buffered sprite as
+  // the original smooth analog clock. This prevents full-screen redraw
+  // flicker and keeps animation fluid on the CYD ESP32.
+  clockSpriteBegin();
+  if (!clockSpriteReady) return;
+
+  const int cx = 88, cy = 88, r = 78;
+  const uint32_t ms = millis();
+  const float t = ms / 1000.0f;
+  const float secF = nowTm.tm_sec + fmodf(ms, 1000.0f) / 1000.0f;
+  const float minF = nowTm.tm_min + secF / 60.0f;
+  const float hourF = (nowTm.tm_hour % 12) + minF / 60.0f;
+
+  clockSprite.fillSprite(TH.bg);
+
+  if (style == 110) { // Orbit
+    clockSprite.drawCircle(cx, cy, 68, TH.panel);
+    clockSprite.drawCircle(cx, cy, 52, TH.dim);
+    for (int i = 0; i < 3; ++i) {
+      float a = t * (0.8f + i * 0.23f) + i * 2.0943951f;
+      int rr = 42 + i * 7;
+      int x = cx + (int)(cosf(a) * rr);
+      int y = cy + (int)(sinf(a) * rr);
+      uint16_t col = (i == 0) ? TH.accent : (i == 1 ? TH.accent2 : TH.good);
+      clockSprite.fillCircle(x, y, 4 + i, col);
+    }
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, cy, 4);
+  }
+  else if (style == 111) { // Pulse
+    float p = 0.5f + 0.5f * sinf(t * 3.0f);
+    int pr = 18 + (int)(p * 18.0f);
+    for (int i = 3; i >= 0; --i) {
+      int rr = pr + i * 12;
+      uint16_t col = (i == 0) ? TH.accent : (i == 1 ? TH.accent2 : TH.panel);
+      clockSprite.drawCircle(cx, cy, rr, col);
+    }
+    clockSprite.fillCircle(cx, cy, 8, TH.panel);
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.panel);
+    clockSprite.drawString(clockTimeString(), cx, cy, 4);
+  }
+  else if (style == 112) { // Matrix rain
+    for (int i = 0; i < 13; ++i) {
+      float speed = 0.55f + (i % 4) * 0.17f;
+      float yy = fmodf(t * 34.0f * speed + i * 29.0f, 190.0f) - 15.0f;
+      int xx = 8 + i * 13;
+      int len = 3 + (i % 5);
+      for (int k = 0; k < len; ++k) {
+        int y = (int)yy - k * 8;
+        if (y >= 0 && y < 176) clockSprite.fillRect(xx, y, 3, 5, k == 0 ? TH.accent : TH.panel);
+      }
+    }
+    clockSprite.fillRoundRect(20, 65, 136, 52, 10, TH.bg);
+    clockSprite.drawRoundRect(20, 65, 136, 52, 10, TH.accent);
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, 84, 4);
+    clockSprite.setTextColor(TH.accent2, TH.bg);
+    clockSprite.drawString(clockSecondsString(), cx, 106, 2);
+  }
+  else if (style == 113) { // Solar system
+    clockSprite.drawCircle(cx, cy, 68, TH.panel);
+    clockSprite.fillCircle(cx, cy, 19, TH.accent);
+    for (int i = 1; i <= 3; ++i) {
+      int rr = 30 + i * 14;
+      clockSprite.drawCircle(cx, cy, rr, TH.dim);
+      float a = (t * (0.35f + i * 0.18f)) + i * 1.8f;
+      int x = cx + (int)(cosf(a) * rr);
+      int y = cy + (int)(sinf(a) * rr);
+      clockSprite.fillCircle(x, y, 3 + i / 2, i == 1 ? TH.accent2 : TH.good);
+    }
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, 151, 2);
+  }
+  else if (style == 114) { // Radar
+    clockSprite.drawCircle(cx, cy, 70, TH.panel);
+    clockSprite.drawCircle(cx, cy, 48, TH.dim);
+    clockSprite.drawCircle(cx, cy, 25, TH.dim);
+    float a = fmodf(t * 1.7f, 2.0f * PI);
+    for (int k = 0; k < 14; ++k) {
+      float aa = a - k * 0.055f;
+      uint16_t col = (k < 3) ? TH.accent : TH.panel;
+      int x = cx + (int)(cosf(aa) * 68);
+      int y = cy + (int)(sinf(aa) * 68);
+      clockSprite.drawLine(cx, cy, x, y, col);
+    }
+    clockSprite.fillCircle(cx + (int)(cosf(a) * 53), cy + (int)(sinf(a) * 53), 4, TH.accent2);
+    clockSprite.fillCircle(cx, cy, 3, TH.good);
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, cy, 3);
+  }
+  else if (style == 115) { // Flip-style digital card
+    float p = 0.5f + 0.5f * sinf(t * PI);
+    int split = 87 + (int)(p * 5.0f);
+    clockSprite.fillRoundRect(10, 30, 156, 116, 14, TH.panel);
+    clockSprite.drawRoundRect(10, 30, 156, 116, 14, TH.accent);
+    clockSprite.drawFastHLine(16, split, 144, TH.dim);
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.panel);
+    clockSprite.drawString(clockTimeString(), cx, 78, 5);
+    clockSprite.setTextColor(TH.accent2, TH.panel);
+    clockSprite.drawString(clockSecondsString(), cx, 111, 2);
+  }
+  else if (style == 116) { // Equalizer bars
+    for (int i = 0; i < 7; ++i) {
+      float wave = 0.5f + 0.5f * sinf(t * 2.6f + i * 0.72f);
+      int h = 20 + (int)(wave * 72.0f);
+      int x = 10 + i * 25;
+      uint16_t col = (i & 1) ? TH.accent : TH.accent2;
+      clockSprite.fillRoundRect(x, 138 - h, 16, h, 5, col);
+    }
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, 155, 3);
+  }
+  else if (style >= 10 && style <= 19) { // 10 genuinely different skeleton clocks
+    const int v = style - 10;
+    const float TAU = 2.0f * PI;
+    const float secA = (secF / 60.0f) * TAU - PI / 2.0f;
+    const float minA = (minF / 60.0f) * TAU - PI / 2.0f;
+    const float hourA = (hourF / 12.0f) * TAU - PI / 2.0f;
+    auto hand = [&](float a, int len, int w, uint16_t col) {
+      int x = cx + (int)(cosf(a) * len);
+      int y = cy + (int)(sinf(a) * len);
+      for (int q = -w; q <= w; ++q) clockSprite.drawLine(cx + q, cy + q, x + q, y + q, col);
+    };
+
+    // All ten variants share the same smooth sprite, but each has a different face/mechanism.
+    if (v == 0) { // Gear train
+      clockSprite.drawCircle(cx, cy, 72, TH.panel);
+      for (int g=0; g<4; ++g) {
+        int gx = cx + (g<2 ? -27 : 27), gy = cy + (g%2 ? 25 : -24), rr = 18 + (g%3)*3;
+        float ga = t * (g&1 ? -1.2f : 1.2f) + g;
+        clockSprite.drawCircle(gx,gy,rr,TH.accent);
+        clockSprite.drawCircle(gx,gy,rr-5,TH.bg);
+        for(int n=0;n<8;n++){float a=ga+n*PI/4; int x1=gx+cosf(a)*rr,y1=gy+sinf(a)*rr; int x2=gx+cosf(a)*(rr+4),y2=gy+sinf(a)*(rr+4);clockSprite.drawLine(x1,y1,x2,y2,TH.accent2);}
+      }
+      hand(hourA,28,2,TH.text); hand(minA,48,1,TH.accent); hand(secA,61,0,TH.accent2);
+    } else if (v == 1) { // Pendulum
+      clockSprite.drawRoundRect(30,14,116,140,18,TH.panel);
+      clockSprite.drawRoundRect(38,22,100,124,14,TH.dim);
+      clockSprite.drawCircle(cx,70,48,TH.bg);
+      for(int n=0;n<12;n++){float a=n*PI/6-PI/2;clockSprite.drawPixel(cx+cosf(a)*43,70+sinf(a)*43,TH.dim);}
+      hand(hourA,24,2,TH.text); hand(minA,38,1,TH.accent); hand(secA,43,0,TH.accent2);
+      float pa=sinf(t*2.4f)*0.48f; int px=cx+(int)(sinf(pa)*38); int py=103+(int)(cosf(pa)*18);
+      clockSprite.drawLine(cx,96,px,py,TH.accent); clockSprite.fillCircle(px,py,9,TH.accent2);
+    } else if (v == 2) { // Roman
+      clockSprite.fillCircle(cx,cy,73,TH.panel); clockSprite.drawCircle(cx,cy,70,TH.accent);
+      const char* rn[12]={"XII","I","II","III","IV","V","VI","VII","VIII","IX","X","XI"};
+      clockSprite.setTextDatum(MC_DATUM); clockSprite.setTextColor(TH.text,TH.panel);
+      for(int n=0;n<12;n++){float a=n*PI/6-PI/2;clockSprite.drawString(rn[n],cx+cosf(a)*57,cy+sinf(a)*57,1);}
+      hand(hourA,30,2,TH.text); hand(minA,48,1,TH.accent); hand(secA,61,0,TH.accent2);
+    } else if (v == 3) { // Moon phases
+      clockSprite.drawCircle(cx,cy,72,TH.panel);
+      for(int i=0;i<8;i++){float a=i*PI/4;clockSprite.drawLine(cx+cosf(a)*61,cy+sinf(a)*61,cx+cosf(a)*68,cy+sinf(a)*68,TH.dim);}
+      float ph=0.5f+0.5f*sinf(t*0.35f); int rr=25; clockSprite.fillCircle(cx,cy,rr,TH.text);
+      clockSprite.fillCircle(cx+(int)((ph-0.5f)*38),cy,rr,TH.panel);
+      hand(hourA,31,2,TH.accent); hand(minA,51,1,TH.accent2); hand(secA,63,0,TH.good);
+    } else if (v == 4) { // Nautical compass
+      clockSprite.drawCircle(cx,cy,72,TH.panel); clockSprite.drawCircle(cx,cy,58,TH.dim);
+      for(int n=0;n<16;n++){float a=n*PI/8; int l=(n%4==0)?66:61;clockSprite.drawLine(cx+cosf(a)*54,cy+sinf(a)*54,cx+cosf(a)*l,cy+sinf(a)*l,TH.dim);}
+      float wave=sinf(t*1.5f)*8;
+      clockSprite.fillTriangle(cx,cy-48,cx-7,cy-27,cx+7,cy-27,TH.accent);
+      clockSprite.drawLine(cx,cy,cx+(int)(cosf(secA)*62),cy+(int)(sinf(secA)*62),TH.accent2);
+      hand(hourA,28,2,TH.text); hand(minA,49,1,TH.accent);
+      clockSprite.drawArc(cx,cy+20,25,18,(int)wave+20,(int)wave+160,TH.good,TH.bg); // gentle wave accent
+    } else if (v == 5) { // Industrial gauge
+      clockSprite.fillRoundRect(10,30,156,110,16,TH.panel);
+      clockSprite.drawRoundRect(10,30,156,110,16,TH.dim);
+      for(int n=0;n<=10;n++){float a=PI*0.75f + n*(PI*1.5f/10);int x1=cx+cosf(a)*48,y1=cy+sin(a)*48;int x2=cx+cosf(a)*61,y2=cy+sinf(a)*61;clockSprite.drawLine(x1,y1,x2,y2,TH.dim);}
+      float gauge=PI*0.75f + (secF/60.0f)*PI*1.5f;
+      clockSprite.drawLine(cx,cy,cx+cosf(gauge)*52,cy+sinf(gauge)*52,TH.accent2); clockSprite.fillCircle(cx,cy,5,TH.good);
+      hand(hourA,24,2,TH.text); hand(minA,40,1,TH.accent);
+    } else if (v == 6) { // Concentric rings
+      for(int i=0;i<6;i++){int rr=70-i*10;float off=t*(0.3f+i*0.05f);clockSprite.drawCircle(cx,cy,rr,(i&1)?TH.accent:TH.panel);clockSprite.drawArc(cx,cy,rr,rr-2,(int)(off*57.3f)%360,(int)(off*57.3f+120)%360,TH.accent2,TH.bg);}
+      hand(hourA,28,2,TH.text); hand(minA,47,1,TH.accent); hand(secA,63,0,TH.good);
+    } else if (v == 7) { // Binary / LED skeleton
+      clockSprite.fillRoundRect(9,24,158,128,12,TH.panel);
+      clockSprite.setTextDatum(MC_DATUM); clockSprite.setTextColor(TH.dim,TH.panel); clockSprite.drawString("H  M  S",cx,42,1);
+      int vals[3]={nowTm.tm_hour%24,nowTm.tm_min,nowTm.tm_sec};
+      for(int row=0;row<6;row++) for(int col=0;col<3;col++){bool on=(vals[col]>>(5-row))&1;int x=57+col*28,y=58+row*13;clockSprite.fillCircle(x,y,4,on?TH.accent:TH.dim);}
+      clockSprite.setTextColor(TH.text,TH.panel); clockSprite.drawString(clockTimeString(),cx,135,2);
+    } else if (v == 8) { // Sun dial
+      clockSprite.fillCircle(cx,cy,71,TH.panel); clockSprite.drawCircle(cx,cy,68,TH.accent);
+      for(int n=0;n<24;n++){float a=n*PI/12-PI/2;int rr=(n%3==0)?62:66;clockSprite.drawLine(cx+cosf(a)*rr,cy+sinf(a)*rr,cx+cosf(a)*70,cy+sinf(a)*70,TH.dim);}
+      float sunA=(hourF/12.0f)*TAU-PI/2; int sx=cx+(int)cosf(sunA)*46, sy=cy+(int)sinf(sunA)*46;
+      clockSprite.fillCircle(sx,sy,9,TH.accent2); hand(hourA,28,2,TH.text); hand(minA,49,1,TH.accent); hand(secA,62,0,TH.good);
+    } else { // Skeleton balance / escapement
+      clockSprite.drawCircle(cx,cy,72,TH.panel); clockSprite.drawCircle(cx,cy,69,TH.dim);
+      float ea=sinf(t*3.2f)*0.55f;
+      int ex=cx+(int)(sinf(ea)*42), ey=cy+39+(int)(cosf(ea)*10);
+      clockSprite.drawLine(cx,cy+14,ex,ey,TH.accent); clockSprite.fillCircle(ex,ey,10,TH.accent2);
+      clockSprite.drawCircle(cx,cy,31,TH.dim);
+      hand(hourA,27,2,TH.text); hand(minA,49,1,TH.accent); hand(secA,63,0,TH.good);
+      clockSprite.fillCircle(cx,cy,5,TH.accent2);
+    }
+    clockSprite.setTextDatum(MC_DATUM); clockSprite.setTextColor(TH.text,TH.panel);
+    clockSprite.drawString(clockTimeString(), cx, 154, 2);
+  }
+  else { // Arc
+    for (int i = 0; i < 4; ++i) {
+      int rr = 28 + i * 15;
+      float center = t * (0.8f + i * 0.13f);
+      float span = 1.6f + 0.55f * sinf(t * 1.8f + i);
+      for (int k = 0; k < 50; ++k) {
+        float u = -span * 0.5f + span * k / 49.0f;
+        float a = center + u;
+        int x = cx + (int)(cosf(a) * rr);
+        int y = cy + (int)(sinf(a) * rr);
+        clockSprite.drawPixel(x, y, (i & 1) ? TH.accent2 : TH.accent);
+      }
+    }
+    clockSprite.setTextDatum(MC_DATUM);
+    clockSprite.setTextColor(TH.text, TH.bg);
+    clockSprite.drawString(clockTimeString(), cx, cy, 4);
+  }
+
+  clockSprite.pushSprite(72, 38);
+  txtp(clockDateShort(), CLOCK_CX, 218, 1, TH.dim, TH.bg, MC_DATUM, 1, 296);
+}
+
 void clockInit() {
-  if (cfg.clockStyle >= 10) cfg.clockStyle = 0;
+  if (cfg.clockStyle >= 20) cfg.clockStyle = 0;
   drawBar(CLOCK_STYLE_NAMES[cfg.clockStyle], nullptr, true);
   clkLastSec = -1; clkMsgShown = false; clkLastFrame = 0; clkLastTemp = -9999;
-  if (cfg.clockStyle == 1) clockSpriteBegin(); else clockSpriteEnd();
+  if (cfg.clockStyle == 1 || cfg.clockStyle >= 10) clockSpriteBegin(); else clockSpriteEnd();
   tft.fillRect(0, BAR, SW, SH - BAR, TH.bg);
   if (timeValid()) {
     clockDrawStatic();
@@ -1244,12 +1461,11 @@ void clockInit() {
 
 void clockLoop() {
   if (tc.press && tc.y <= BAR && tc.x > 220) {
-    cfg.custom = false;
     cfg.theme = (cfg.theme + 1) % NTHEMES;
     saveCfg(); beep(1700, 18); clockInit(); return;
   }
   if (tc.press && tc.y > BAR + 4) {
-    cfg.clockStyle = (cfg.clockStyle + 1) % 10;
+    cfg.clockStyle = (cfg.clockStyle + 1) % 20;
     saveCfg(); beep(1300, 20); clockInit(); return;
   }
   if (!timeValid()) {
@@ -1258,12 +1474,19 @@ void clockLoop() {
       tft.fillRect(0, BAR, SW, SH - BAR, TH.bg);
       txt("Syncing time...", CLOCK_CX, 115, 2, TH.dim, TH.bg, MC_DATUM);
       if (WiFi.status() != WL_CONNECTED)
-        txt("Waiting for WiFi", CLOCK_CX, 140, 1, TH.dim, TH.bg, MC_DATUM);
+        txt("Set time from Control", CLOCK_CX, 140, 1, TH.dim, TH.bg, MC_DATUM);
     }
     return;
   }
   if (clkMsgShown) { clkMsgShown = false; clockInit(); return; }
 
+  if (cfg.clockStyle >= 10) {
+    uint32_t nowMs = millis();
+    if ((uint32_t)(nowMs - clkLastFrame) < 33UL) return;
+    clkLastFrame = nowMs;
+    drawAnimatedClockNew(cfg.clockStyle);
+    return;
+  }
   if (cfg.clockStyle == 1) {
     uint32_t nowMs = millis();
     if ((uint32_t)(nowMs - clkLastFrame) < 33UL) return;
@@ -1450,7 +1673,7 @@ void wxDraw() {
   if (wx.stamp[0]) txtp(String("Upd ") + wx.stamp, SW - 74, BAR / 2 + 1, 2, TH.dim, TH.panel, MR_DATUM, 1, 100);
   if (!wx.ok) {
     txt("No weather data", 160, 100, 4, TH.dim, TH.bg, MC_DATUM);
-    txt(WiFi.status() == WL_CONNECTED ? "Tap REF to retry" : "Waiting for WiFi...", 160, 136, 2, TH.dim, TH.bg, MC_DATUM);
+    txt(WiFi.status() == WL_CONNECTED ? "Tap REF to retry" : "Internet required for live weather", 160, 136, 2, TH.dim, TH.bg, MC_DATUM);
     return;
   }
   drawWxIcon(62, 84, 8, wmoIcon(wx.code));
@@ -1509,7 +1732,7 @@ void setRowTheme() {
   int y = SET_Y0;
   button(168, y + 1, 30, 24, "<", TH.bg, TH.accent, 2);
   button(278, y + 1, 28, 24, ">", TH.bg, TH.accent, 2);
-  txt(cfg.custom ? "Custom" : TH.name, 238, y + SET_H / 2 + 1, 2, TH.text, TH.panel, MC_DATUM);
+  txt(TH.name, 238, y + SET_H / 2 + 1, 2, TH.text, TH.panel, MC_DATUM);
 }
 void setRowBright() {
   setRowBase(1, "Brightness");
@@ -1547,12 +1770,12 @@ void settingsInit() {
 void settingsLoop() {
   if (tc.press) {
     if (pressIn(168, SET_Y0 + 1, 34, 28)) {
-      cfg.theme = (cfg.theme + NTHEMES - 1) % NTHEMES; cfg.custom = false;
-      saveCfg(); syncCustomTheme(); beep(1200, 20); settingsInit(); return;
+      cfg.theme = (cfg.theme + NTHEMES - 1) % NTHEMES;
+      saveCfg(); beep(1200, 20); settingsInit(); return;
     }
     if (pressIn(276, SET_Y0 + 1, 34, 28)) {
-      cfg.theme = (cfg.theme + 1) % NTHEMES; cfg.custom = false;
-      saveCfg(); syncCustomTheme(); beep(1200, 20); settingsInit(); return;
+      cfg.theme = (cfg.theme + 1) % NTHEMES;
+      saveCfg(); beep(1200, 20); settingsInit(); return;
     }
     if (pressIn(120, SET_Y0 + SET_STEP, 192, SET_H)) sliderDrag = true;
     if (pressIn(236, SET_Y0 + 2 * SET_STEP, 78, SET_H)) {
@@ -1565,8 +1788,8 @@ void settingsLoop() {
       cfg.fahr = tc.x >= 264; saveCfg(); beep(1400, 20); setRowTemp();
     }
     if (pressIn(164, SET_Y0 + 5 * SET_STEP, 148, SET_H)) {
-      if (tc.x < 205) cfg.clockStyle = (cfg.clockStyle + 9) % 10;
-      else cfg.clockStyle = (cfg.clockStyle + 1) % 10;
+      if (tc.x < 205) cfg.clockStyle = (cfg.clockStyle + 19) % 20;
+      else cfg.clockStyle = (cfg.clockStyle + 1) % 20;
       saveCfg(); beep(1200, 20); setRowClockStyle();
     }
     if (pressIn(50, 202, 220, 34)) {
@@ -1962,8 +2185,111 @@ void islamicLoop() {
   }
 }
 
+// ============================ KNOWLEDGE QUIZ ================================
+// A simple offline Yes/No quiz: General Knowledge, Islamic facts and Bangladesh facts.
+struct KnowledgeQ { const char* cat; const char* q; bool yes; };
+const KnowledgeQ KQ[] = {
+  {"GENERAL", "The Earth goes around the Sun.", true},
+  {"GENERAL", "Water freezes at 0 C at sea level.", true},
+  {"GENERAL", "The Pacific Ocean is larger than the Atlantic.", true},
+  {"GENERAL", "The Moon is a star.", false},
+  {"ISLAMIC", "Muslims pray five obligatory prayers each day.", true},
+  {"ISLAMIC", "Ramadan is the ninth month of the Islamic calendar.", true},
+  {"ISLAMIC", "The Quran is the holy book of Islam.", true},
+  {"ISLAMIC", "Fajr is one of the five daily obligatory prayers.", true},
+  {"BANGLADESH", "Dhaka is the capital of Bangladesh.", true},
+  {"BANGLADESH", "The national currency of Bangladesh is the taka.", true},
+  {"BANGLADESH", "The Sundarbans is shared by Bangladesh and India.", true},
+  {"BANGLADESH", "Cox's Bazar is known for its long natural sea beach.", true},
+  {"BANGLADESH", "Bangladesh is located in South Asia.", true},
+  {"GENERAL", "The Sun is a planet.", false},
+  {"ISLAMIC", "Zakat is one of the Five Pillars of Islam.", true},
+  {"BANGLADESH", "The national language of Bangladesh is Bangla.", true}
+};
+const int KQ_COUNT = sizeof(KQ) / sizeof(KQ[0]);
+int kqIndex = 0, kqScore = 0, kqAnswered = 0;
+bool kqAnsweredThis = false, kqLastCorrect = false;
+uint32_t kqMsgUntil = 0;
+
+void knowledgeDraw() {
+  tft.fillScreen(TH.bg);
+  drawBar("Knowledge", "NEXT", true);
+  const KnowledgeQ &q = KQ[kqIndex];
+  uint16_t catCol = !strcmp(q.cat, "ISLAMIC") ? TH.good :
+                    (!strcmp(q.cat, "BANGLADESH") ? TH.accent2 : TH.accent);
+
+  // Header cards
+  tft.fillRoundRect(10, 38, 300, 30, 10, TH.panel);
+  txt(q.cat, 24, 53, 2, catCol, TH.panel, ML_DATUM);
+  txt(String("Q ") + String(kqIndex + 1) + "/" + String(KQ_COUNT),
+      286, 53, 1, TH.dim, TH.panel, MR_DATUM);
+  txt(String("Score ") + String(kqScore), 160, 77, 1, TH.dim, TH.bg, MC_DATUM);
+
+  // Question card
+  tft.fillRoundRect(10, 86, 300, 82, 12, TH.panel);
+  tft.drawRoundRect(10, 86, 300, 82, 12, catCol);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(TH.text, TH.panel);
+  tft.setTextSize(1);
+  String text = q.q;
+  int y = 98;
+  int pos = 0;
+  while (pos < (int)text.length() && y < 155) {
+    int cut = pos, last = -1;
+    while (cut < (int)text.length()) {
+      if (text[cut] == ' ') last = cut;
+      String part = text.substring(pos, cut + 1);
+      if (tft.textWidth(part, 1) > 278) break;
+      cut++;
+    }
+    if (cut >= (int)text.length()) cut = text.length();
+    else if (last > pos) cut = last;
+    String line = text.substring(pos, cut);
+    tft.drawString(line, 18, y, 1);
+    y += 13;
+    pos = cut;
+    while (pos < (int)text.length() && text[pos] == ' ') pos++;
+  }
+
+  // Answer state
+  if (!kqAnsweredThis) {
+    button(12, 176, 140, 34, "YES", TH.good, TH.onacc, 2);
+    button(168, 176, 140, 34, "NO", TH.bad, C565(255,255,255), 2);
+    txt("Tap YES or NO", 160, 218, 1, TH.dim, TH.bg, MC_DATUM);
+  } else {
+    uint16_t resultCol = kqLastCorrect ? TH.good : TH.bad;
+    const char* result = kqLastCorrect ? "RIGHT!" : "WRONG!";
+    tft.fillRoundRect(12, 176, 296, 34, 10, resultCol);
+    tft.drawRoundRect(12, 176, 296, 34, 10, resultCol);
+    txt(result, 160, 193, 2, TH.onacc, resultCol, MC_DATUM);
+    txt(kqLastCorrect ? "Correct answer" : "Try the next one",
+        160, 218, 1, resultCol, TH.bg, MC_DATUM);
+  }
+}
+void knowledgeInit() { knowledgeDraw(); }
+void knowledgeAnswer(bool answer) {
+  if (kqAnsweredThis) return;
+  kqLastCorrect = (answer == KQ[kqIndex].yes);
+  if (kqLastCorrect) kqScore++;
+  kqAnswered++; kqAnsweredThis = true; kqMsgUntil = millis() + 1200;
+  beep(kqLastCorrect ? 1800 : 700, 35);
+  knowledgeDraw();
+}
+void knowledgeNext() {
+  kqIndex = (kqIndex + 1) % KQ_COUNT;
+  kqAnsweredThis = false; kqLastCorrect = false;
+  knowledgeDraw();
+}
+void knowledgeLoop() {
+  if (!tc.press) return;
+  if (pressIn(SW - 70, 0, 66, BAR + 2)) { beep(1500, 20); knowledgeNext(); return; }
+  if (pressIn(12, 170, 140, 42)) { knowledgeAnswer(true); return; }
+  if (pressIn(168, 170, 140, 42)) { knowledgeAnswer(false); return; }
+  if (kqAnsweredThis && (int32_t)(millis() - kqMsgUntil) > 0) knowledgeNext();
+}
+
 // ============================ GAME COMMON ===================================
-const char* GAME_TITLE[10] = {"X & O", "Snake", "Memory", "Whack", "Reflex", "2048", "Bricks", "Simon", "Tetris", "Flappy"};
+const char* GAME_TITLE[10] = {"X & O", "Snake", "Memory", "Whack", "Reflex", "2048", "Bricks", "Simon", "Tetris", "Pong"};
 uint32_t gameOverAt = 0;
 
 void gameScoreText(const String &s) { txtp(s, SW - 74, BAR / 2 + 1, 2, TH.text, TH.panel, MR_DATUM, 1, 110); }
@@ -2806,91 +3132,105 @@ void tetLoop() {
   }
 }
 
-// ---- 9: FLAPPY ----
-float flY, flVY, flPipeX[3], flPipeGapY[3];
-int flScore, flState;
-const int FL_GAP = 66, FL_PIPE_W = 34, FL_GX = 60;
+// ---- 9: PONG ----
+float pgBallX, pgBallY, pgVX, pgVY;
+int pgPlayerY, pgCpuY, pgScore, pgCpuScore, pgState;
+int pgOldPlayerY, pgOldCpuY, pgOldBallX, pgOldBallY;
+uint32_t pgLast = 0;
+const int PG_PAD_W = 7, PG_PAD_H = 42, PG_BALL_R = 5;
 
-void flDrawPipe(float x, float gapY) {
-  int px = (int)x;
-  if (px > SW || px + FL_PIPE_W < 0) return;
-  tft.fillRect(px, BAR, FL_PIPE_W, (int)gapY, TH.good);
-  tft.fillRect(px, (int)gapY + FL_GAP, FL_PIPE_W, SH - BAR - (int)gapY - FL_GAP, TH.good);
-  tft.fillRect(px - 3, (int)gapY - 4, FL_PIPE_W + 6, 6, TH.accent);
-  tft.fillRect(px - 3, (int)gapY + FL_GAP - 2, FL_PIPE_W + 6, 6, TH.accent);
+void pgStatic() {
+  tft.fillScreen(TH.bg);
+  drawBar("Pong", "NEW", false);
+  for (int y = BAR + 4; y < SH; y += 10) tft.fillRect(SW / 2 - 1, y, 2, 5, TH.dim);
+  txt("YOU", 45, BAR + 18, 1, TH.accent, TH.bg, MC_DATUM);
+  txt("CPU", SW - 45, BAR + 18, 1, TH.accent2, TH.bg, MC_DATUM);
+  txt(String(pgScore), SW / 2 - 25, BAR + 18, 4, TH.accent, TH.bg, MC_DATUM);
+  txt(String(pgCpuScore), SW / 2 + 25, BAR + 18, 4, TH.accent2, TH.bg, MC_DATUM);
 }
-void flErasePipe(float x) {
-  int px = (int)x;
-  tft.fillRect(px - 4, BAR, FL_PIPE_W + 8, SH - BAR, TH.bg);
-}
-void flInit() {
-  clearContent();
-  flY = 120; flVY = 0; flScore = 0; flState = 0;
-  for (int i = 0; i < 3; i++) {
-    flPipeX[i] = SW + i * 140;
-    flPipeGapY[i] = random(50, SH - 120 - FL_GAP);
+void pgDrawPaddle(int x, int y, uint16_t c) { tft.fillRoundRect(x, y, PG_PAD_W, PG_PAD_H, 3, c); }
+void pgDrawBall(int x, int y) { tft.fillCircle(x, y, PG_BALL_R, TH.text); }
+void pgEraseBall(int x, int y) {
+  tft.fillCircle(x, y, PG_BALL_R + 1, TH.bg);
+  if (abs(x - SW / 2) < PG_BALL_R + 3) {
+    int yy = y - 5;
+    for (int dy = -10; dy <= 10; dy += 10) if (yy + dy > BAR + 3 && yy + dy < SH) tft.fillRect(SW/2-1, yy+dy, 2, 5, TH.dim);
   }
-  gameScoreText("0");
-  txt("tap to fly", SW / 2, SH - 40, 2, TH.dim, TH.bg, MC_DATUM);
 }
-void flBird(int x, int y) {
-  tft.fillCircle(x, y, 9, C565(255, 220, 60));
-  tft.fillCircle(x + 3, y - 3, 2, C565(20, 20, 20));
-  tft.fillTriangle(x - 6, y, x - 16, y - 5, x - 16, y + 5, C565(255, 130, 40));
+void pgErasePaddle(int x, int y) { tft.fillRect(x - 1, y - 1, PG_PAD_W + 2, PG_PAD_H + 2, TH.bg); }
+void pgDrawDynamic() {
+  if (pgOldPlayerY != pgPlayerY) { pgErasePaddle(12, pgOldPlayerY); pgDrawPaddle(12, pgPlayerY, TH.accent); }
+  if (pgOldCpuY != pgCpuY) { pgErasePaddle(SW - 19, pgOldCpuY); pgDrawPaddle(SW - 19, pgCpuY, TH.accent2); }
+  if (pgOldBallX >= 0) pgEraseBall(pgOldBallX, pgOldBallY);
+  pgDrawBall((int)pgBallX, (int)pgBallY);
+  pgOldPlayerY = pgPlayerY; pgOldCpuY = pgCpuY;
+  pgOldBallX = (int)pgBallX; pgOldBallY = (int)pgBallY;
 }
-void flEraseBird(int x, int y) { tft.fillCircle(x, y, 13, TH.bg); }
-
-void flLoop() {
-  if (flState == 2) {
-    if (tapAfterOver()) flInit();
-    return;
-  }
-  static uint32_t flLast = 0;
+void pgDrawScene() {
+  pgStatic();
+  pgOldPlayerY = pgPlayerY; pgOldCpuY = pgCpuY; pgOldBallX = -1; pgOldBallY = -1;
+  pgDrawPaddle(12, pgPlayerY, TH.accent);
+  pgDrawPaddle(SW - 19, pgCpuY, TH.accent2);
+  pgDrawBall((int)pgBallX, (int)pgBallY);
+  if (pgState == 0) txt("Touch the screen to start", SW / 2, SH - 14, 1, TH.dim, TH.bg, MC_DATUM);
+}
+void pgResetBall(int dir) {
+  pgBallX = SW / 2.0f;
+  pgBallY = BAR + 65 + random(10, 110);
+  pgVX = dir * 3.0f;
+  pgVY = (random(-100, 101)) / 45.0f;
+  if (fabsf(pgVY) < 1.0f) pgVY = pgVY < 0 ? -1.0f : 1.0f;
+}
+void pgInit() {
+  pgScore = 0; pgCpuScore = 0; pgState = 0;
+  pgPlayerY = 100; pgCpuY = 100;
+  pgResetBall(random(0, 2) ? 1 : -1);
+  pgLast = millis();
+  pgDrawScene();
+}
+void pgLoop() {
   uint32_t now = millis();
-  if (now - flLast < 25) return;
-  flLast = now;
-
-  if (tc.press && tc.y > BAR) {
-    if (flState == 0) { flState = 1; tft.fillRect(0, SH - 60, SW, 40, TH.bg); }
-    flVY = -5.5f;
-    beep(900, 20);
+  if (pgState == 2) { if (tc.press && tc.y > BAR) pgInit(); return; }
+  if (tc.down && tc.y > BAR) {
+    int ny = constrain(tc.y - PG_PAD_H / 2, BAR + 3, SH - PG_PAD_H - 2);
+    if (abs(ny - pgPlayerY) > 1) pgPlayerY = ny;
+    if (pgState == 0) pgState = 1;
   }
-  if (flState == 0) return;
+  if (pgState == 0) return;
+  if (now - pgLast < 16) return;
+  float dt = (now - pgLast) / 16.0f;
+  pgLast = now;
+  pgBallX += pgVX * dt;
+  pgBallY += pgVY * dt;
+  if (pgBallY <= BAR + PG_BALL_R) { pgBallY = BAR + PG_BALL_R; pgVY = fabsf(pgVY); }
+  if (pgBallY >= SH - PG_BALL_R) { pgBallY = SH - PG_BALL_R; pgVY = -fabsf(pgVY); }
+  float cpuCenter = pgCpuY + PG_PAD_H / 2.0f;
+  int cpuStep = (fabsf(pgVX) > 4.0f) ? 3 : 2;
+  if (cpuCenter < pgBallY - 3) pgCpuY += cpuStep;
+  else if (cpuCenter > pgBallY + 3) pgCpuY -= cpuStep;
+  pgCpuY = constrain(pgCpuY, BAR + 3, SH - PG_PAD_H - 2);
 
-  static int lastBx = -100, lastBy = -100;
-  if (lastBx > -50) flEraseBird(lastBx, lastBy);
-  flVY += 0.45f;
-  if (flVY > 8) flVY = 8;
-  flY += flVY;
-  flBird(FL_GX, (int)flY);
-  lastBx = FL_GX; lastBy = (int)flY;
-
-  for (int i = 0; i < 3; i++) {
-    flErasePipe(flPipeX[i]);
-    flPipeX[i] -= 2.4f;
-    if (flPipeX[i] < -FL_PIPE_W - 6) {
-      flPipeX[i] = SW + 20;
-      flPipeGapY[i] = random(50, SH - 120 - FL_GAP);
-    }
-    flDrawPipe(flPipeX[i], flPipeGapY[i]);
-
-    if (FL_GX + 9 > flPipeX[i] && FL_GX - 9 < flPipeX[i] + FL_PIPE_W) {
-      if (flY - 8 < flPipeGapY[i] || flY + 8 > flPipeGapY[i] + FL_GAP) {
-        flState = 2; submitScore(9, flScore); flushHi();
-        beep(200, 400);
-        overlay("Crashed!", String("Score ") + flScore, TH.bad);
-        return;
-      }
-    }
-    if (flPipeX[i] + FL_PIPE_W == FL_GX - 9) {
-      flScore++; gameScoreText(String(flScore)); beep(1500, 40);
-    }
+  if (pgVX < 0 && pgBallX - PG_BALL_R <= 19 && pgBallX > 8 && pgBallY >= pgPlayerY - PG_BALL_R && pgBallY <= pgPlayerY + PG_PAD_H + PG_BALL_R) {
+    pgBallX = 19 + PG_BALL_R; pgVX = fabsf(pgVX) + 0.08f;
+    pgVY += (pgBallY - (pgPlayerY + PG_PAD_H / 2.0f)) * 0.055f;
+    pgVY = constrain(pgVY, -6.0f, 6.0f); beep(1300, 10);
   }
-  if (flY > SH - 10) {
-    flState = 2; submitScore(9, flScore); flushHi();
-    beep(200, 400);
-    overlay("Game Over", String("Score ") + flScore, TH.bad);
+  if (pgVX > 0 && pgBallX + PG_BALL_R >= SW - 19 && pgBallX < SW - 8 && pgBallY >= pgCpuY - PG_BALL_R && pgBallY <= pgCpuY + PG_PAD_H + PG_BALL_R) {
+    pgBallX = SW - 19 - PG_BALL_R; pgVX = -fabsf(pgVX) - 0.08f;
+    pgVY += (pgBallY - (pgCpuY + PG_PAD_H / 2.0f)) * 0.055f;
+    pgVY = constrain(pgVY, -6.0f, 6.0f); beep(1500, 10);
   }
+  if (pgBallX < -10) {
+    pgCpuScore++; pgResetBall(1);
+    if (pgCpuScore >= 5) { pgState = 2; submitScore(9, pgScore); flushHi(); overlay("Pong Over", String("You ") + pgScore + " - " + pgCpuScore, TH.bad); return; }
+    pgStatic(); pgDrawDynamic(); return;
+  }
+  if (pgBallX > SW + 10) {
+    pgScore++; pgResetBall(-1);
+    if (pgScore >= 5) { pgState = 2; submitScore(9, pgScore); flushHi(); overlay("You Win", String("Score ") + pgScore, TH.good); return; }
+    pgStatic(); pgDrawDynamic(); return;
+  }
+  pgDrawDynamic();
 }
 
 // ---- GAME DISPATCHER ----
@@ -2907,7 +3247,7 @@ void gameInit() {
     case 6: brInit(); break;
     case 7: simInit(); break;
     case 8: tetInit(); break;
-    default: flInit(); break;
+    default: pgInit(); break;
   }
 }
 void gameStart(int g) {
@@ -2928,12 +3268,12 @@ void gameLoop() {
     case 6: brLoop(); break;
     case 7: simLoop(); break;
     case 8: tetLoop(); break;
-    default: flLoop(); break;
+    default: pgLoop(); break;
   }
 }
 
 // ============================ GAMES MENU ====================================
-const char* GAME_NAME[10] = {"X & O", "Snake", "Memory", "Whack", "Reflex", "2048", "Bricks", "Simon", "Tetris", "Flappy"};
+const char* GAME_NAME[10] = {"X & O", "Snake", "Memory", "Whack", "Reflex", "2048", "Bricks", "Simon", "Tetris", "Pong"};
 int gtx(int i) { return 4 + (i % 5) * 63; }
 int gty(int i) { return 32 + (i / 5) * 102; }
 
@@ -2998,11 +3338,10 @@ void gameIcon(int g, int cx, int cy, uint16_t bg) {
       tft.fillRoundRect(cx - 8, cy + 4, 12, 12, 2, C565(240,160,50));
       break;
     default:
-      tft.fillCircle(cx - 4, cy, 13, C565(255, 220, 60));
-      tft.fillCircle(cx, cy - 5, 2, C565(20, 20, 20));
-      tft.fillTriangle(cx - 14, cy, cx - 26, cy - 6, cx - 26, cy + 6, C565(255, 130, 40));
-      tft.fillRect(cx + 8, cy - 22, 7, 20, C565(60, 200, 90));
-      tft.fillRect(cx + 8, cy + 2, 7, 20, C565(60, 200, 90));
+      tft.fillRoundRect(cx - 25, cy - 20, 6, 40, 3, TH.accent);
+      tft.fillRoundRect(cx + 19, cy - 20, 6, 40, 3, TH.accent2);
+      tft.fillCircle(cx, cy, 5, TH.text);
+      tft.drawFastHLine(cx - 11, cy, 11, TH.dim);
       break;
   }
 }
@@ -3026,7 +3365,7 @@ void gamesLoop() {
 
 // ============================ PHONE CONTROL =================================
 WebServer server(80);
-const char* SCREEN_NAMES[10] = {"Home", "Clock", "Timer", "Weather", "Games", "Settings", "Game", "Wi-Fi Setup", "Islamic", "Alarms"};
+const char* SCREEN_NAMES[11] = {"Home", "Clock", "Timer", "Weather", "Games", "Settings", "Game", "Wi-Fi Setup", "Islamic", "Alarms", "Knowledge"};
 
 String jsonEscape(const String &in) {
   String out;
@@ -3045,7 +3384,7 @@ String jsonEscape(const String &in) {
 void wsRefreshTimerUI() {
   if (screen != SCR_TIMER) return;
   tmLastA = -1; tmLastB = -1;
-  tmDrawMain(); tmDrawSub(); tmDrawButtons(); tmDrawLaps();
+  tmDrawMain(); tmDrawSub(); tmDrawButtons();
 }
 
 void handleWebRoot() {
@@ -3091,8 +3430,6 @@ button.state{min-width:150px}
 .network{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-top:8px;background:rgba(12,20,33,.85)}
 .network b{font-size:13px;display:block}
 .netmeta{font-size:11px;color:var(--muted);margin-top:3px}
-.colorrow{display:grid;grid-template-columns:1fr 66px;gap:8px;align-items:center;margin:8px 0}
-.colorrow input[type=color]{width:66px;height:40px;padding:2px;border-radius:10px;background:transparent;border:1px solid var(--line)}
 .range{width:100%;accent-color:var(--accent)}
 .games button{flex:1 1 105px;font-size:12px;padding:8px 10px}
 .badge{display:inline-block;font-size:10px;padding:3px 8px;border-radius:6px;background:rgba(41,199,255,.15);color:var(--accent);font-weight:700;margin-left:6px}
@@ -3126,7 +3463,7 @@ button.state{min-width:150px}
     <button onclick="go('weather')">Weather</button>
     <button onclick="go('islamic')">Islamic</button>
     <button onclick="go('games')">Games</button>
-    <button onclick="go('settings')">Settings</button>
+    <button onclick="go('settings')">Settings</button><button onclick="go('knowledge')">Knowledge</button>
     <button class="primary" onclick="go('setup')">Wi-Fi Setup</button>
   </div>
 </div>
@@ -3159,7 +3496,6 @@ button.state{min-width:150px}
       <button id="h24Btn" class="state" onclick="act('toggle','h24')">24-hour: --</button>
       <button id="soundBtn" class="state" onclick="act('toggle','sound')">Sound: --</button>
       <button id="fahrBtn" class="state" onclick="act('toggle','fahr')">Temp: --</button>
-      <button id="customBtn" class="state" onclick="act('toggle','custom')">Custom: --</button>
     </div>
     <div class="status" id="stateText">Loading...</div>
   </section>
@@ -3178,34 +3514,13 @@ button.state{min-width:150px}
     <input class="range" type="range" min="10" max="255" id="bright" oninput="setBright(this.value)">
     <div class="two" style="margin-top:10px">
       <div><label class="muted">Clock Style</label>
-        <select id="clockStyle" onchange="setClockStyle(this.value)">
-          <option value="0">Digital</option><option value="1">Analog</option>
-          <option value="2">Big Digital</option><option value="3">Minimal</option>
-          <option value="4">Ring</option><option value="5">Neon</option>
-          <option value="6">Dashboard</option><option value="7">Split</option>
-          <option value="8">Clean</option><option value="9">Seconds</option>
-        </select>
+        <select id="clockStyle" onchange="setClockStyle(this.value)"><option value="0">0: Digital</option><option value="1">1: Analog</option><option value="2">2: Big Digital</option><option value="3">3: Minimal</option><option value="4">4: Ring</option><option value="5">5: Neon</option><option value="6">6: Dashboard</option><option value="7">7: Split</option><option value="8">8: Clean</option><option value="9">9: Seconds</option><option value="10">10: Gear Train</option><option value="11">11: Pendulum</option><option value="12">12: Roman</option><option value="13">13: Moon Phase</option><option value="14">14: Compass</option><option value="15">15: Industrial</option><option value="16">16: Concentric</option><option value="17">17: Binary LED</option><option value="18">18: Sun Dial</option><option value="19">19: Balance</option></select>
       </div>
       <div><label class="muted">Temperature</label>
         <select id="tempUnit" onchange="setTemp(this.value)">
           <option value="C">Celsius</option><option value="F">Fahrenheit</option>
         </select>
       </div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2><span class="icon">C</span> Custom Colors</h2>
-    <div class="subh">Override theme with your own colors</div>
-    <div class="colorrow"><span>Background</span><input id="cBg" type="color"></div>
-    <div class="colorrow"><span>Panel</span><input id="cPanel" type="color"></div>
-    <div class="colorrow"><span>Text</span><input id="cText" type="color"></div>
-    <div class="colorrow"><span>Dim Text</span><input id="cDim" type="color"></div>
-    <div class="colorrow"><span>Accent</span><input id="cAcc" type="color"></div>
-    <div class="colorrow"><span>Accent 2</span><input id="cAcc2" type="color"></div>
-    <div class="row">
-      <button class="primary" onclick="saveColors()">Apply Colors</button>
-      <button onclick="act('colors','reset')">Use Theme Colors</button>
     </div>
   </section>
 </div>
@@ -3244,7 +3559,22 @@ button.state{min-width:150px}
 <div class="grid">
   <section class="card">
     <h2><span class="icon">T</span> Time Control</h2>
-    <div class="subh">NTP sync and manual time setting</div>
+    <div class="subh">Works with NTP when online, and manual time from this Control AP when offline.</div>
+    <div style="margin-bottom:10px">
+      <label class="muted">Quick country / timezone preset</label>
+      <select id="countryPreset" onchange="applyCountryPreset(this.value)">
+        <option value="">Choose preset...</option>
+        <option value="dhaka">Bangladesh - Dhaka (UTC+6)</option>
+        <option value="kolkata">India - Kolkata (UTC+5:30)</option>
+        <option value="karachi">Pakistan - Karachi (UTC+5)</option>
+        <option value="kathmandu">Nepal - Kathmandu (UTC+5:45)</option>
+        <option value="dubai">UAE - Dubai (UTC+4)</option>
+        <option value="riyadh">Saudi Arabia - Riyadh (UTC+3)</option>
+        <option value="singapore">Singapore (UTC+8)</option>
+        <option value="tokyo">Japan - Tokyo (UTC+9)</option>
+        <option value="shanghai">China - Shanghai (UTC+8)</option>
+      </select>
+    </div>
     <div class="two">
       <div><label class="muted">Format</label>
         <select id="timeFormat" onchange="setTimeFormat(this.value)">
@@ -3263,41 +3593,35 @@ button.state{min-width:150px}
   </section>
 
   <section class="card">
-    <h2><span class="icon">Wx</span> Weather Location</h2>
-    <div class="subh">City coordinates used by Open-Meteo API</div>
-    <input id="city" class="input" placeholder="City">
-    <div class="two" style="margin-top:8px">
-      <input id="lat" class="input" type="number" step="0.0001" placeholder="Latitude">
-      <input id="lon" class="input" type="number" step="0.0001" placeholder="Longitude">
-    </div>
-    <div class="two" style="margin-top:8px">
-      <input id="tzH" class="input" type="number" step="0.25" placeholder="UTC Hours">
-      <input id="dst" class="input" type="number" value="0" placeholder="DST">
-    </div>
-    <div class="row">
-      <button class="primary" onclick="saveLocation()">Save Location</button>
-      <button onclick="act('refresh','weather')">Refresh Weather</button>
-    </div>
+    <h2><span class="icon">Wx</span> Easy Weather Location</h2>
+    <div class="subh">Pick a place, or type a city and let Open-Meteo find its coordinates. Wi-Fi is only needed to fetch live weather.</div>
+    <label class="muted">Quick location</label>
+    <select id="weatherPreset" onchange="applyWeatherPreset(this.value)" style="margin-top:6px">
+      <option value="">Choose a city...</option>
+      <option value="dhaka">Dhaka, Bangladesh</option><option value="rajshahi">Rajshahi, Bangladesh</option>
+      <option value="chittagong">Chattogram, Bangladesh</option><option value="sylhet">Sylhet, Bangladesh</option>
+      <option value="kolkata">Kolkata, India</option><option value="karachi">Karachi, Pakistan</option>
+      <option value="kathmandu">Kathmandu, Nepal</option><option value="dubai">Dubai, UAE</option>
+      <option value="riyadh">Riyadh, Saudi Arabia</option><option value="singapore">Singapore</option>
+      <option value="tokyo">Tokyo, Japan</option><option value="shanghai">Shanghai, China</option>
+    </select>
+    <div class="two" style="margin-top:8px"><input id="citySearch" class="input" placeholder="Type city name"><button class="primary" onclick="findCity()">Find City</button></div>
+    <input id="city" class="input" style="margin-top:8px" placeholder="Selected city">
+    <div class="two" style="margin-top:8px"><input id="lat" class="input" type="number" step="0.0001" placeholder="Latitude"><input id="lon" class="input" type="number" step="0.0001" placeholder="Longitude"></div>
+    <div class="two" style="margin-top:8px"><input id="tzH" class="input" type="number" step="0.25" placeholder="UTC Hours"><input id="dst" class="input" type="number" value="0" placeholder="DST"></div>
+    <div class="row"><button class="primary" onclick="saveLocation()">Save Location</button><button onclick="act('refresh','weather')">Refresh Weather</button></div>
+    <div class="status" id="geoStatus">Select a preset or find a city.</div>
   </section>
 </div>
 
 <div class="section-title">Timer & Games</div>
 <div class="grid">
   <section class="card">
-    <h2><span class="icon">Tr</span> Timer & Stopwatch</h2>
-    <div class="subh">Control countdown timer and stopwatch remotely</div>
-    <div class="row">
-      <button onclick="act('timer','-1m')">-1 min</button>
-      <button onclick="act('timer','+1m')">+1 min</button>
-      <button onclick="act('timer','-10s')">-10 sec</button>
-      <button onclick="act('timer','+10s')">+10 sec</button>
-    </div>
-    <div class="row">
-      <button class="good" onclick="act('timer','start')">Start / Pause</button>
-      <button onclick="act('timer','reset')">Reset Timer</button>
-      <button class="primary" onclick="act('sw','toggle')">Stopwatch Start/Stop</button>
-      <button onclick="act('sw','lap')">Lap / Reset</button>
-    </div>
+    <h2><span class="icon">Tr</span> Timer + Stopwatch</h2>
+    <div class="subh">Both are inside the same CYD time tool. Choose the mode here.</div>
+    <div class="row"><button class="primary" onclick="act('timer','countdown')">Countdown</button><button class="primary2" onclick="act('timer','stopwatch')">Stopwatch</button></div>
+    <div class="row"><button onclick="act('timer','-1m')">-1 min</button><button onclick="act('timer','+1m')">+1 min</button><button onclick="act('timer','-10s')">-10 sec</button><button onclick="act('timer','+10s')">+10 sec</button></div>
+    <div class="row"><button class="good" onclick="act('timer','start')">Start / Pause</button><button onclick="act('timer','reset')">Reset</button></div>
   </section>
 
   <section class="card">
@@ -3322,7 +3646,7 @@ button.state{min-width:150px}
 <div id="toast" class="toast"></div>
 
 <script>
-const games=['X & O','Snake','Memory','Whack','Reflex','2048','Bricks','Simon','Tetris','Flappy'];
+const games=['X & O','Snake','Memory','Whack','Reflex','2048','Bricks','Simon','Tetris','Pong'];
 const ge=document.getElementById('games');
 games.forEach((n,i)=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>act('game',i);ge.appendChild(b);});
 function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200);}
@@ -3333,8 +3657,38 @@ function setClockStyle(v){act('clock',v);}
 function setTemp(v){act('temp',v);}
 function setTimeFormat(v){act('format',v);}
 function syncNtp(){act('time','sync');}
+const countryPresets={
+ dhaka:{city:'Dhaka',lat:23.8103,lon:90.4125,tz:6},
+ kolkata:{city:'Kolkata',lat:22.5726,lon:88.3639,tz:5.5},
+ karachi:{city:'Karachi',lat:24.8607,lon:67.0011,tz:5},
+ kathmandu:{city:'Kathmandu',lat:27.7172,lon:85.3240,tz:5.75},
+ dubai:{city:'Dubai',lat:25.2048,lon:55.2708,tz:4},
+ riyadh:{city:'Riyadh',lat:24.7136,lon:46.6753,tz:3},
+ singapore:{city:'Singapore',lat:1.3521,lon:103.8198,tz:8},
+ tokyo:{city:'Tokyo',lat:35.6762,lon:139.6503,tz:9},
+ shanghai:{city:'Shanghai',lat:31.2304,lon:121.4737,tz:8}
+};
+const weatherPresets={
+ dhaka:{city:'Dhaka',lat:23.8103,lon:90.4125,tz:6},rajshahi:{city:'Rajshahi',lat:24.3745,lon:88.6042,tz:6},
+ chittagong:{city:'Chattogram',lat:22.3569,lon:91.7832,tz:6},sylhet:{city:'Sylhet',lat:24.8949,lon:91.8687,tz:6},
+ kolkata:{city:'Kolkata',lat:22.5726,lon:88.3639,tz:5.5},karachi:{city:'Karachi',lat:24.8607,lon:67.0011,tz:5},
+ kathmandu:{city:'Kathmandu',lat:27.7172,lon:85.3240,tz:5.75},dubai:{city:'Dubai',lat:25.2048,lon:55.2708,tz:4},
+ riyadh:{city:'Riyadh',lat:24.7136,lon:46.6753,tz:3},singapore:{city:'Singapore',lat:1.3521,lon:103.8198,tz:8},
+ tokyo:{city:'Tokyo',lat:35.6762,lon:139.6503,tz:9},shanghai:{city:'Shanghai',lat:31.2304,lon:121.4737,tz:8}
+};
+function applyWeatherPreset(k){const p=weatherPresets[k];if(!p)return;document.getElementById('city').value=p.city;document.getElementById('lat').value=p.lat;document.getElementById('lon').value=p.lon;document.getElementById('tzH').value=p.tz;document.getElementById('geoStatus').textContent=p.city+' selected. Tap Save Location.';}
+function findCity(){const q=document.getElementById('citySearch').value.trim();if(!q){toast('Type a city first');return;}document.getElementById('geoStatus').textContent='Searching...';fetch('/geo?q='+encodeURIComponent(q)).then(r=>r.json()).then(d=>{if(!d.ok){document.getElementById('geoStatus').textContent=d.message||'City not found';return;}document.getElementById('city').value=d.city;document.getElementById('lat').value=d.lat;document.getElementById('lon').value=d.lon;document.getElementById('tzH').value=d.tz;document.getElementById('geoStatus').textContent=d.city+' found. Tap Save Location.';}).catch(()=>document.getElementById('geoStatus').textContent='Search failed. Check Wi-Fi.');}
+
+function applyCountryPreset(k){
+ const p=countryPresets[k]; if(!p)return;
+ document.getElementById('city').value=p.city;
+ document.getElementById('lat').value=p.lat;
+ document.getElementById('lon').value=p.lon;
+ document.getElementById('tzH').value=p.tz;
+ saveLocation();
+}
 function saveLocation(){
- const q='city='+encodeURIComponent(document.getElementById('city').value)+'&lat='+encodeURIComponent(document.getElementById('lat').value)+'&lon='+encodeURIComponent(document.getElementById('lon').value)+'&tz='+encodeURIComponent(document.getElementById('tzH').value);
+ const q='city='+encodeURIComponent(document.getElementById('city').value)+'&lat='+encodeURIComponent(document.getElementById('lat').value)+'&lon='+encodeURIComponent(document.getElementById('lon').value)+'&tz='+encodeURIComponent(document.getElementById('tzH').value)+'&dst='+encodeURIComponent(document.getElementById('dst').value||0);
  fetch('/act?k=location&'+q).then(r=>r.text()).then(x=>{toast(x);refresh();}).catch(()=>toast('Location save failed'));
 }
 function setManualTime(){
@@ -3342,36 +3696,62 @@ function setManualTime(){
  if(!v){toast('Select date and time first');return;}
  fetch('/act?k=timeSet&v='+encodeURIComponent(v)).then(r=>r.text()).then(x=>{toast(x);refresh();});
 }
-function saveColors(){
- const ids=[['bg','cBg'],['panel','cPanel'],['text','cText'],['dim','cDim'],['accent','cAcc'],['accent2','cAcc2']];
- Promise.all(ids.map(x=>fetch('/act?k=color&v='+x[0]+'&c='+encodeURIComponent(document.getElementById(x[1]).value))))
- .then(()=>fetch('/act?k=colors&v=apply')).then(r=>r.text()).then(x=>{toast(x);refresh();});
-}
 function setState(id,on,onText,offText){const e=document.getElementById(id);e.textContent=on?onText:offText;e.classList.toggle('on',on);e.classList.toggle('off',!on);}
 function alarmDaysLabel(d){return d===127?'Every day':d===62?'Weekdays':d===65?'Weekends':'Custom';}
-function renderAlarms(list){
+let alarmUiReady=false;
+let lastAlarmJson='';
+function buildAlarmUi(){
  const box=document.getElementById('alarmList');
- if(!box||!list) return;
+ if(!box||alarmUiReady)return;
  box.innerHTML='';
- list.forEach((a,i)=>{
-  const row=document.createElement('div'); row.className='network';
+ for(let i=0;i<3;i++){
+  const row=document.createElement('div'); row.className='network'; row.id='alarmRow'+i;
   const left=document.createElement('div');
-  left.innerHTML='<b>Alarm '+(i+1)+'</b><div class="netmeta">'+alarmDaysLabel(a.d)+'</div>';
+  const title=document.createElement('b'); title.textContent='Alarm '+(i+1);
+  const meta=document.createElement('div'); meta.className='netmeta'; meta.id='alarmDays'+i;
   const inp=document.createElement('input');
-  inp.type='time'; inp.className='input';
+  inp.type='time'; inp.className='input'; inp.id='alarmTime'+i;
   inp.style.width='120px'; inp.style.marginTop='6px';
-  inp.value=String(a.h).padStart(2,'0')+':'+String(a.m).padStart(2,'0');
-  inp.onchange=()=>{const p=inp.value.split(':');
-   fetch('/act?k=alarm&v=set&i='+i+'&h='+p[0]+'&m='+p[1]+'&d='+a.d+'&e='+(a.e?1:0)).then(()=>refresh());};
-  left.appendChild(inp);
+  inp.onchange=()=>saveAlarmTime(i);
+  left.appendChild(title); left.appendChild(meta); left.appendChild(inp);
   const right=document.createElement('div');
-  const b=document.createElement('button');
-  b.textContent=a.e?'ON':'OFF'; b.className=a.e?'good':'';
+  const b=document.createElement('button'); b.id='alarmToggle'+i;
   b.onclick=()=>fetch('/act?k=alarm&v=toggle&i='+i).then(()=>refresh());
   right.appendChild(b);
-  row.appendChild(left); row.appendChild(right);
-  box.appendChild(row);
+  row.appendChild(left); row.appendChild(right); box.appendChild(row);
+ }
+ alarmUiReady=true;
+}
+function saveAlarmTime(i){
+ const inp=document.getElementById('alarmTime'+i);
+ const p=(inp.value||'').split(':'); if(p.length!==2)return;
+ const days=Number(inp.dataset.days||127), enabled=inp.dataset.enabled==='1';
+ fetch('/act?k=alarm&v=set&i='+i+'&h='+encodeURIComponent(p[0])+'&m='+encodeURIComponent(p[1])+'&d='+days+'&e='+(enabled?1:0))
+  .then(r=>r.text()).then(x=>{toast(x);refresh();}).catch(()=>toast('Alarm save failed'));
+}
+function renderAlarms(list){
+ if(!list)return;
+ buildAlarmUi();
+ const sig=JSON.stringify(list);
+ if(sig===lastAlarmJson)return;
+ list.forEach((a,i)=>{
+  const inp=document.getElementById('alarmTime'+i);
+  const meta=document.getElementById('alarmDays'+i);
+  const b=document.getElementById('alarmToggle'+i);
+  meta.textContent=alarmDaysLabel(a.d);
+  inp.dataset.days=a.d; inp.dataset.enabled=a.e?'1':'0';
+  // Never overwrite a time field while the user is editing/opening its picker.
+  if(document.activeElement!==inp){
+    const v=String(a.h).padStart(2,'0')+':'+String(a.m).padStart(2,'0');
+    if(inp.value!==v) inp.value=v;
+  }
+  b.textContent=a.e?'ON':'OFF'; b.className=a.e?'good':'';
  });
+ lastAlarmJson=sig;
+}
+function safeValue(id,value){
+ const e=document.getElementById(id);
+ if(e && document.activeElement!==e) e.value=value;
 }
 function refresh(){fetch('/status').then(r=>r.json()).then(d=>{
  document.getElementById('connection').textContent=d.sta?'Home Wi-Fi Connected':'Control AP Active';
@@ -3382,15 +3762,14 @@ function refresh(){fetch('/status').then(r=>r.json()).then(d=>{
  document.getElementById('rssi').textContent=d.sta?(d.rssi+' dBm'):'-';
  document.getElementById('bright').value=d.bright;document.getElementById('brightVal').textContent=d.bright;
  document.getElementById('clockStyle').value=d.clockIndex;document.getElementById('tempUnit').value=d.fahr?'F':'C';document.getElementById('timeFormat').value=d.h24?'24':'12';
- document.getElementById('city').value=d.city;document.getElementById('lat').value=d.lat;document.getElementById('lon').value=d.lon;document.getElementById('tzH').value=d.tzHours;
- setState('h24Btn',d.h24,'24-hour: ON','24-hour: OFF');setState('soundBtn',d.sound,'Sound: ON','Sound: OFF');setState('fahrBtn',d.fahr,'Fahrenheit: ON','Celsius: ON');setState('customBtn',d.custom,'Custom: ON','Custom: OFF');
+ safeValue('city',d.city);safeValue('lat',d.lat);safeValue('lon',d.lon);safeValue('tzH',d.tzHours);
+ setState('h24Btn',d.h24,'24-hour: ON','24-hour: OFF');setState('soundBtn',d.sound,'Sound: ON','Sound: OFF');setState('fahrBtn',d.fahr,'Fahrenheit: ON','Celsius: ON');
  document.getElementById('themeBadge').textContent='Theme: '+d.theme;
- document.getElementById('stateText').textContent='Clock: '+d.clockStyle+' | Wi-Fi: '+(d.sta?'ON':'OFF')+' | Weather: '+(d.weather?'ACTIVE':'WAITING')+' | Islamic: '+(d.islamicCat||'All');
+ document.getElementById('stateText').textContent='Clock: '+d.clockStyle+' | Wi-Fi: '+(d.sta?'ON':'OFF')+' | Weather: '+(!d.sta?'OFFLINE':(d.weather?'ACTIVE':'WAITING'))+' | Islamic: '+(d.islamicCat||'All');
  document.getElementById('islamicInfo').textContent='Category: '+(d.islamicCat||'All')+' | Current: '+escapeHtml(d.islamicRef||'-');
  if(d.alarms) renderAlarms(d.alarms);
  document.getElementById('alarmBadge').textContent=d.alarmRinging?'RINGING!':'Ready';
  document.getElementById('alarmBadge').style.color=d.alarmRinging?'#ff5d6c':'';
- ['cBg','cPanel','cText','cDim','cAcc','cAcc2'].forEach((id,i)=>document.getElementById(id).value=[d.bg,d.panel,d.text,d.dim,d.accent,d.accent2][i]);
 }).catch(()=>{document.getElementById('connection').textContent='Offline';});}
 function scanWiFi(){const box=document.getElementById('wifiList');box.innerHTML='<div class="status">Scanning...</div>';fetch('/wifi/scan').then(r=>r.json()).then(d=>{
  if(!d.networks||!d.networks.length){box.innerHTML='<div class="status">No networks found.</div>';return;}
@@ -3419,6 +3798,7 @@ void handleWebGoto() {
   else if (s == "setup") target = SCR_SETUP;
   else if (s == "islamic") target = SCR_ISLAMIC;
   else if (s == "alarm") target = SCR_ALARM;
+  else if (s == "knowledge") target = SCR_KNOWLEDGE;
   if (target >= 0) { flushHi(); goScreen(target); }
   server.send(200, "text/plain", target >= 0 ? "Navigation updated" : "Unknown screen");
 }
@@ -3460,12 +3840,16 @@ void handleWebAct() {
     int idx = v.toInt();
     if (idx >= 0 && idx < 10) { gameStart(idx); msg = "Game started"; }
   } else if (k == "timer") {
+    if (v == "countdown") { if(swRun){swMs += millis()-swLast; swRun=false;} tmTab=0; cdRun=false; if(screen==SCR_TIMER) timerInit(); msg="Countdown mode"; wsRefreshTimerUI(); return; }
+    if (v == "stopwatch") { cdRun=false; tmTab=1; if(screen==SCR_TIMER) timerInit(); msg="Stopwatch mode"; wsRefreshTimerUI(); return; }
+    if (v == "start" && tmTab==1) { if(swRun){swMs += millis()-swLast; swRun=false;} else {swLast=millis(); swRun=true;} msg=swRun?"Stopwatch started":"Stopwatch paused"; wsRefreshTimerUI(); return; }
+    if (v == "reset" && tmTab==1) { swRun=false; swMs=0; msg="Stopwatch reset"; wsRefreshTimerUI(); return; }
     int delta = 0;
     if (v == "-1m") delta = -60;
     else if (v == "+1m") delta = 60;
     else if (v == "-10s") delta = -10;
     else if (v == "+10s") delta = 10;
-    if (delta && !cdRun && !cdDone) {
+    if (delta && tmTab==0 && !cdRun && !cdDone) {
       int t = (int)(cdTotal / 1000) + delta;
       t = constrain(t, 10, 5990);
       cdTotal = (uint32_t)t * 1000UL; cdLeft = cdTotal; msg = "Timer updated";
@@ -3478,26 +3862,16 @@ void handleWebAct() {
       cdRun = false; cdDone = false; cdLeft = cdTotal; msg = "Timer reset";
     }
     wsRefreshTimerUI();
-  } else if (k == "sw") {
-    if (v == "toggle") {
-      swRun = !swRun; if (swRun) swLast = millis();
-      msg = swRun ? "Stopwatch started" : "Stopwatch stopped";
-    } else if (v == "lap") {
-      if (swRun) { lapMs[1] = lapMs[0]; lapMs[0] = swMs; lapNo++; msg = "Lap recorded"; }
-      else { swMs = 0; lapNo = 0; lapMs[0] = lapMs[1] = 0; msg = "Stopwatch reset"; }
-    }
-    wsRefreshTimerUI();
   } else if (k == "theme") {
     if (v == "prev") cfg.theme = (cfg.theme + NTHEMES - 1) % NTHEMES;
     else cfg.theme = (cfg.theme + 1) % NTHEMES;
-    cfg.custom = false; saveCfg(); syncCustomTheme();
+    saveCfg();
     goScreen(screen); msg = "Theme updated";
   } else if (k == "toggle") {
     if (v == "h24") cfg.h24 = !cfg.h24;
     else if (v == "sound") cfg.sound = !cfg.sound;
     else if (v == "fahr") cfg.fahr = !cfg.fahr;
-    else if (v == "custom") cfg.custom = !cfg.custom;
-    saveCfg(); syncCustomTheme(); goScreen(screen);
+    saveCfg(); goScreen(screen);
     msg = "Preference updated";
   } else if (k == "bright") {
     int b = constrain(v.toInt(), 10, 255);
@@ -3505,7 +3879,7 @@ void handleWebAct() {
     if (screen == SCR_SETTINGS) setRowBright();
     msg = "Brightness updated";
   } else if (k == "clock") {
-    int st = constrain(v.toInt(), 0, 9);
+    int st = constrain(v.toInt(), 0, 27);
     cfg.clockStyle = st; saveCfg();
     if (screen == SCR_CLOCK) clockInit(); else if (screen == SCR_SETTINGS) setRowClockStyle();
     msg = "Clock style set to " + String(CLOCK_STYLE_NAMES[st]);
@@ -3519,20 +3893,6 @@ void handleWebAct() {
     if (screen == SCR_SETTINGS) setRowH24();
     else if (screen == SCR_CLOCK || screen == SCR_HOME) goScreen(screen);
     msg = cfg.h24 ? "24-hour format enabled" : "12-hour format enabled";
-  } else if (k == "color") {
-    String c = server.arg("c");
-    uint16_t col = hexTo565(c);
-    if (v == "bg") cfg.customBg = col;
-    else if (v == "panel") cfg.customPanel = col;
-    else if (v == "text") cfg.customText = col;
-    else if (v == "dim") cfg.customDim = col;
-    else if (v == "accent") cfg.customAccent = col;
-    else if (v == "accent2") cfg.customAccent2 = col;
-    cfg.custom = true; syncCustomTheme(); saveCfg();
-    msg = "Color updated";
-  } else if (k == "colors") {
-    if (v == "reset") { cfg.custom = false; saveCfg(); syncCustomTheme(); goScreen(screen); msg = "Theme colors restored"; }
-    else { cfg.custom = true; syncCustomTheme(); saveCfg(); goScreen(screen); msg = "Custom colors applied"; }
   } else if (k == "location") {
     String city = server.arg("city"); city.trim();
     float lat = server.arg("lat").toFloat(), lon = server.arg("lon").toFloat();
@@ -3643,19 +4003,12 @@ void handleWebStatus() {
   json += "\"h24\":" + String(cfg.h24 ? "true" : "false") + ",";
   json += "\"sound\":" + String(cfg.sound ? "true" : "false") + ",";
   json += "\"fahr\":" + String(cfg.fahr ? "true" : "false") + ",";
-  json += "\"custom\":" + String(cfg.custom ? "true" : "false") + ",";
   json += "\"clockIndex\":" + String(cfg.clockStyle) + ",";
   json += "\"clockStyle\":\"" + jsonEscape(String(CLOCK_STYLE_NAMES[cfg.clockStyle])) + "\",";
-  json += "\"theme\":\"" + jsonEscape(cfg.custom ? String("Custom") : String(TH.name)) + "\",";
+  json += "\"theme\":\"" + jsonEscape(String(TH.name)) + "\",";
   json += "\"weather\":" + String(wx.ok ? "true" : "false") + ",";
   json += "\"islamicCat\":\"" + jsonEscape(String(islamicCatName(islamicCat))) + "\",";
   json += "\"islamicRef\":\"" + jsonEscape(islamicRef) + "\",";
-  json += "\"bg\":\"" + colorHex(cfg.customBg) + "\",";
-  json += "\"panel\":\"" + colorHex(cfg.customPanel) + "\",";
-  json += "\"text\":\"" + colorHex(cfg.customText) + "\",";
-  json += "\"dim\":\"" + colorHex(cfg.customDim) + "\",";
-  json += "\"accent\":\"" + colorHex(cfg.customAccent) + "\",";
-  json += "\"accent2\":\"" + colorHex(cfg.customAccent2) + "\",";
   json += "\"sta\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
   json += "\"ssid\":\"" + jsonEscape(WiFi.status() == WL_CONNECTED ? WiFi.SSID() : savedWifiSSID()) + "\",";
   json += "\"staip\":\"" + WiFi.localIP().toString() + "\",";
@@ -3726,6 +4079,22 @@ void handleWiFiConnect() {
   server.send(200, "text/plain", "Wi-Fi credentials saved. Connecting to " + ssid + "...");
 }
 
+void handleWebGeo() {
+  String q = server.arg("q"); q.trim();
+  if (!q.length()) { server.send(400,"application/json","{\"ok\":false,\"message\":\"City required\"}"); return; }
+  if (WiFi.status() != WL_CONNECTED) { server.send(200,"application/json","{\"ok\":false,\"message\":\"Connect Wi-Fi first for city search\"}"); return; }
+  WiFiClientSecure client; client.setInsecure(); HTTPClient http; http.setTimeout(8000);
+  String url = String("https://geocoding-api.open-meteo.com/v1/search?name=") + q + "&count=1&language=en&format=json";
+  if (!http.begin(client,url)) { server.send(200,"application/json","{\"ok\":false,\"message\":\"Geocoding unavailable\"}"); return; }
+  int code=http.GET(); if(code!=HTTP_CODE_OK){http.end();server.send(200,"application/json","{\"ok\":false,\"message\":\"City search failed\"}");return;}
+  String body=http.getString(); http.end(); JsonDocument doc; if(deserializeJson(doc,body)){server.send(200,"application/json","{\"ok\":false,\"message\":\"Invalid geocoding response\"}");return;}
+  JsonObject r=doc["results"][0]; if(r.isNull()){server.send(200,"application/json","{\"ok\":false,\"message\":\"City not found\"}");return;}
+  String name=String((const char*)(r["name"]|"")); String country=String((const char*)(r["country"]|""));
+  float lat=r["latitude"]|0.0f, lon=r["longitude"]|0.0f; String tzs=String((const char*)(r["timezone"]|""));
+  long tz=0; if(tzs=="Asia/Dhaka")tz=21600; else if(tzs=="Asia/Kolkata")tz=19800; else if(tzs=="Asia/Kathmandu")tz=20700; else if(tzs=="Asia/Karachi")tz=18000; else if(tzs=="Asia/Dubai")tz=14400; else if(tzs=="Asia/Riyadh")tz=10800; else if(tzs=="Asia/Singapore")tz=28800; else if(tzs=="Asia/Tokyo")tz=32400; else if(tzs=="Asia/Shanghai")tz=28800;
+  String tzH=String(tz/3600.0f,2); String json="{\"ok\":true,\"city\":\""+jsonEscape(name+", "+country)+"\",\"lat\":"+String(lat,5)+",\"lon\":"+String(lon,5)+",\"tz\":"+tzH+"}"; server.send(200,"application/json",json);
+}
+
 void setupWebServer() {
   server.on("/", HTTP_GET, handleWebRoot);
   server.on("/goto", HTTP_GET, handleWebGoto);
@@ -3733,6 +4102,7 @@ void setupWebServer() {
   server.on("/status", HTTP_GET, handleWebStatus);
   server.on("/wifi/scan", HTTP_GET, handleWiFiScan);
   server.on("/wifi/connect", HTTP_POST, handleWiFiConnect);
+  server.on("/geo", HTTP_GET, handleWebGeo);
   server.begin();
 }
 
@@ -3752,6 +4122,7 @@ void goScreen(int s) {
     case SCR_SETUP:    setupInit();    break;
     case SCR_ISLAMIC:  islamicInit();  break;
     case SCR_ALARM:    alarmInit();    break;
+    case SCR_KNOWLEDGE: knowledgeInit(); break;
     default: break;
   }
 }
@@ -3768,13 +4139,13 @@ void setup() {
   Serial.begin(115200);
   loadCfg();
   tft.init();
-  tft.setRotation(TFT_ROT);
+  tft.setRotation(3);
   tft.invertDisplay(INVERT_COLORS);
   tft.fillScreen(TH.bg);
   hwPwmInit();
   touchSPI.begin(TOUCH_CLK, TOUCH_MISO, TOUCH_MOSI, TOUCH_CS);
   ts.begin(touchSPI);
-  ts.setRotation(1);
+  ts.setRotation(3);
   randomSeed(esp_random());
 
   WiFi.mode(WIFI_AP_STA);
@@ -3809,6 +4180,7 @@ void loop() {
     case SCR_GAME:     gameLoop();     break;
     case SCR_ISLAMIC:  islamicLoop();  break;
     case SCR_ALARM:    alarmLoop();    break;
+    case SCR_KNOWLEDGE: knowledgeLoop(); break;
   }
   delay(1);
 }
